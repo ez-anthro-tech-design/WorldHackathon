@@ -3,4 +3,4 @@ python-dotenv>=1.0.1
 openai>=1.54.0
 numpy>=1.26.0
 pillow>=10.4.0
-modal>=1.0.0
+modal>=1.5.0

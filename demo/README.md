@@ -31,9 +31,11 @@ pip install -r requirements.txt
 cp .env.local.example .env.local   # then fill in; .env.local is gitignored
 ```
 
-Deploy the controller model (one A100, scales to zero after 15 min idle):
+Deploy the controller model (Qwen2.5-VL-7B on vLLM, one A100, scales to zero
+after 15 min idle):
 
 ```bash
+pip install modal && modal setup   # one-time, opens a browser to authenticate
 modal secret create neuro-vllm VLLM_API_KEY=$(openssl rand -hex 16)
 modal deploy modal_vllm.py
 ```
