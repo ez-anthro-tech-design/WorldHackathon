@@ -62,6 +62,36 @@ Used for the *visual* world the arm sees and for demo-quality output.
 - Python control path: `pip install reactor-sdk`, `Reactor(model_name=...)`, `@reactor.on_status`,
   frames arrive as `(H, W, 3)` uint8 arrays — feed straight into the agent's vision stack.
 
+### 3b. The surgical-arm "avatar", and whether an LLM can live inside the world
+
+Two questions worth settling up front, because they shape the whole architecture.
+
+**Can an LLM be called into a Reactor world?** No. Reactor is a video-model runtime, not an agent
+host: a client connects over WebRTC, sends commands, and receives frames. There is no tool-calling,
+no LLM inference endpoint, no way to run code inside a session. The agent therefore lives in *our*
+process and drives the world from outside — read frames + tremor signal, decide, emit
+`set_prompt` / `set_camera_pose`. Functionally this is what we want anyway; it just means "LLM
+inside the world" is really "LLM holding the controller".
+
+**Can Reactor give us a controllable arm avatar?** Not directly with the generative world models —
+they emit pixels, not a rigged object with a pose you can command, so an arm described only in a
+prompt will drift and deform. The better construction is X2, which is the one model that takes an
+*inbound* `source` video track:
+
+1. We render the ground-truth scene ourselves — brain volume from Layer A plus a kinematic robot arm
+   — with a cheap rasterizer (three.js / MuJoCo / PyBullet). Geometry, arm pose, and electrode tip
+   position are exact and fully under our control.
+2. Publish that render to X2 on `source`, with `set_reference_image` anchoring the instrument's
+   appearance and `set_prompt` describing the surgical look.
+3. X2 returns a photoreal re-render on `main_video` at 24 fps, block-by-block.
+
+That keeps the arm a real kinematic object (so the policy's actions mean something and are
+replayable on hardware) while Reactor supplies photorealism — instead of asking a video model to
+both invent and remember the anatomy. Trade-off: X2 is a style/identity transform, so it can still
+alter details frame to frame; treat it as visual domain randomization on top of our render, not as
+the source of truth. `lingbot-world-2` remains the option for free-flight exploration of an
+"inside the brain" world where exact geometry doesn't matter.
+
 Known risks to design around: ~48 fps but chunk-boundary latency, no guarantee of geometric
 consistency, cost per session, and the fact that the same command sequence will not reproduce the
 same pixels. Treat Layer B as a perception-domain randomizer, not a simulator.
